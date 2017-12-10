@@ -10,6 +10,7 @@ var path = require('path');
 var platform = os.platform();
 var ProgressBar = require('progress');
 var https = require('https');
+var url = require('url');
 
 var arch = os.arch();
 var spawn = require('child_process').spawn;
@@ -143,6 +144,24 @@ function downloadBinary(res) {
   });
 }
 
+// Handle installation behind a proxy.
+function getUrl(requestedUrl) {
+  var proxyUrl = process.env.https_proxy || process.env.HTTPS_PROXY;
+  if (proxyUrl) {
+    var proxyParts = url.parse(proxyUrl);
+    var requestedUrlParts = url.parse(requestedUrl);
+    return {
+      host: proxyParts.hostname,
+      port: proxyParts.port,
+      path: requestedUrl,
+      headers: {
+        Host: requestedUrlParts.hostname
+      }
+    }
+  }
+  return requestedUrl;
+}
+
 // Count redirects, just in case we get a loop.
 // Pretty sure this can't happen with the github releases URL
 var redirectCt = 0;
@@ -154,7 +173,7 @@ function handleResponse(res) {
       process.exit(1);
     }
     fetch
-      .get(res.headers.Location || res.headers.location, handleResponse)
+      .get(getUrl(res.headers.Location || res.headers.location), handleResponse)
       .on('error', function(err) {
         console.log(err);
         process.exit(1);
@@ -173,7 +192,7 @@ function shouldDownloadScript() {
 
 // Start download
 if (shouldDownloadScript()) {
-  fetch.get(downloadUrl, handleResponse).on('error', function(err) {
+  fetch.get(getUrl(downloadUrl), handleResponse).on('error', function(err) {
     console.log(err);
     process.exit(1);
   });
